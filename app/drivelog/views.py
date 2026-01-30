@@ -1,6 +1,8 @@
 import calendar
 from datetime import date, timedelta
 
+from django.db.models import Sum, Count
+from django.db.models.functions import TruncMonth
 from rest_framework import status, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import CreateAPIView, RetrieveUpdateAPIView
@@ -9,7 +11,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from .models import CalendarDay, DrivingLog, Destination
-from .serializers import CalendarDaySerializer, DrivingLogSerializer, DestinationSerializer
+from .serializers import CalendarDaySerializer, DrivingLogSerializer, DestinationSerializer, MonthlyStatsSerializer, \
+    YearlyStatsSerializer
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 class CalendarMonthView(APIView):
@@ -74,7 +77,6 @@ class DrivingLogUpdateView(RetrieveUpdateAPIView):
 
     def get_object(self):
         obj = super().get_object()
-        # 🔒 Sicherheitscheck: darf nur der Owner des Tages bearbeiten
         if obj.day.user != self.request.user:
             raise PermissionDenied("Du darfst dieses Fahrtenbuch nicht bearbeiten.")
         return obj
@@ -94,3 +96,88 @@ class DestinationView(viewsets.ModelViewSet):
         instance.is_active = False
         instance.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+class MonthlyStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses=MonthlyStatsSerializer,
+        parameters=[
+            OpenApiParameter("year", int),
+            OpenApiParameter("month", int),
+        ],
+    )
+    def get(self, request):
+        year = int(request.query_params.get("year"))
+        month = int(request.query_params.get("month"))
+
+        logs = DrivingLog.objects.filter(
+            day__user=request.user,
+            day__date__year=year,
+            day__date__month=month
+        ).select_related("destination", "day")
+
+        # 🔹 Gesamt-KM
+        total_km = logs.aggregate(
+            total=Sum("destination__km")
+        )["total"] or 0
+
+        # 🔹 Nutzung je Ziel
+        destinations = logs.values(
+            "destination__name"
+        ).annotate(
+            count=Count("id"),
+            km_total=Sum("destination__km")
+        ).order_by("-count")
+
+        return Response({
+            "year": year,
+            "month": month,
+            "total_km": total_km,
+            "destinations": destinations
+        })
+
+
+class YearlyStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses=YearlyStatsSerializer,
+        parameters=[OpenApiParameter("year", int)],
+    )
+    def get(self, request):
+        year = int(request.query_params["year"])
+
+        logs = DrivingLog.objects.filter(
+            day__user=request.user,
+            day__date__year=year
+        )
+
+        # 🔹 Gesamt-KM im Jahr
+        total_km = logs.aggregate(
+            total=Sum("destination__km")
+        )["total"] or 0
+
+        # 🔹 KM pro Monat
+        months = logs.annotate(
+            month=TruncMonth("day__date")
+        ).values("month").annotate(
+            total_km=Sum("destination__km"),
+            trips=Count("id")
+        ).order_by("month")
+
+        # 🔹 Nutzung je Ziel
+        destinations = logs.values("destination__name").annotate(
+            count=Count("id"),
+            km_total=Sum("destination__km")
+        ).order_by("-km_total")
+
+        data = {
+            "year": year,
+            "total_km": total_km,
+            "monthly_totals": list(months),
+            "destinations": list(destinations)
+        }
+
+        return Response(data)
+
