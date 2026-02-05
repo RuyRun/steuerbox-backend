@@ -46,7 +46,7 @@ INSTALLED_APPS = [
     # Local Apps
     'core',
     'accounts',
-    'drivelog',
+    'tripbook'
 ]
 
 MIDDLEWARE = [
