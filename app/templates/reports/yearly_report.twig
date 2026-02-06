@@ -1,0 +1,198 @@
+{% load months %}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Jahresauswertung {{ yearly.year }}</title>
+
+    <style>
+        /* Seitenlayout */
+        @page {
+            size: A4;
+            margin: 2.2cm;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                         Roboto, Helvetica, Arial, sans-serif;
+            font-size: 11pt;
+            color: #2c3e50;
+            line-height: 1.5;
+        }
+
+        h1, h2, h3 {
+            margin: 0 0 0.6em 0;
+            color: #1f2d3d;
+        }
+
+        h1 {
+            font-size: 24pt;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 0.3em;
+            margin-bottom: 1em;
+        }
+
+        h2 {
+            font-size: 16pt;
+            margin-top: 0.5em;
+        }
+
+        p {
+            margin: 0.4em 0 1em 0;
+        }
+
+        /* Karten / Boxen */
+        .summary {
+            display: flex;
+            gap: 1cm;
+            margin-bottom: 1.2cm;
+        }
+
+        .summary-box {
+            flex: 1;
+            background: #f4f8fb;
+            border-left: 5px solid #3498db;
+            padding: 0.8cm;
+        }
+
+        .summary-box .label {
+            font-size: 9pt;
+            color: #6c7a89;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .summary-box .value {
+            font-size: 18pt;
+            font-weight: bold;
+            margin-top: 0.2em;
+        }
+
+        /* Tabellen */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.6cm;
+        }
+
+        th {
+            background: #3498db;
+            color: #ffffff;
+            font-weight: normal;
+            text-align: left;
+            padding: 0.35cm;
+            font-size: 10pt;
+        }
+
+        td {
+            padding: 0.35cm;
+            border-bottom: 1px solid #e1e6eb;
+        }
+
+        tr:nth-child(even) td {
+            background: #f8fafc;
+        }
+
+        td.number {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        /* Seitenumbrüche */
+        .page-break {
+            page-break-before: always;
+        }
+
+        /* Monatskopf */
+        .month-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 0.5cm;
+        }
+
+        .month-total {
+            font-size: 12pt;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        /* Footer */
+        .footer {
+            position: running(footer);
+            font-size: 9pt;
+            color: #7f8c8d;
+            text-align: center;
+            margin-top: 1cm;
+        }
+
+        @page {
+            @bottom-center {
+                content: "Jahresauswertung {{ yearly.year }}";
+                font-size: 9pt;
+                color: #7f8c8d;
+            }
+        }
+    </style>
+</head>
+<body>
+<!-- SEITE 1: JAHRESÜBERSICHT -->
+<h1>Jahresauswertung {{ yearly.year }}</h1>
+
+<div class="summary">
+    <div class="summary-box">
+        <div class="label">Gesamtkilometer</div>
+        <div class="value">{{ yearly.total_kilometers|de_format }} km</div>
+    </div>
+
+    <div class="summary-box">
+        <div class="label">Monate erfasst</div>
+        <div class="value">{{ yearly.months | length }}</div>
+    </div>
+</div>
+
+<h2>Monatsübersicht</h2>
+
+<table>
+    <tr>
+        <th>Monat</th>
+        <th class="number">Fahrten</th>
+        <th class="number">Kilometer</th>
+    </tr>
+    {% for m in yearly.months %}
+    <tr>
+        <td>{{ m.month|month_name }}</td>
+        <td class="number">{{ m.trips_count }}</td>
+        <td class="number">{{ m.total_kilometers|de_format }} km</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<!-- SEITEN 2+: MONATSDDETAILS -->
+{% for month in monthly %}
+<div class="page-break"></div>
+
+<div class="month-header">
+    <h2>{{ month.month|month_name }} {{ month.year }}</h2>
+    <div class="month-total">{{ month.total_kilometers|de_format }} km</div>
+</div>
+
+<table>
+    <tr>
+        <th>Ziel</th>
+        <th class="number">Fahrten</th>
+        <th class="number">Kilometer</th>
+    </tr>
+    {% for d in month.destinations %}
+    <tr>
+        <td>{{ d.street }}, {{ d.city }}</td>
+        <td class="number">{{ d.trips_count }}</td>
+        <td class="number">{{ d.km_total|de_format }} km</td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endfor %}
+
+</body>
+</html>

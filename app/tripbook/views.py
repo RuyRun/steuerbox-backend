@@ -2,8 +2,9 @@ from collections import defaultdict
 from datetime import date, timedelta
 import calendar
 
-from django.db.models.aggregates import Sum, Count
-from django.db.models.functions import ExtractMonth
+from weasyprint import HTML
+from django.http import HttpResponse
+from django.template.loader import render_to_string
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -12,6 +13,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from .models import DestinationAddress, TripBook
 from .serializers import DestinationAddressSerializer, TripBookSerializer, MonthlyStatsSerializer, YearlyStatsSerializer
+from .service.stats import get_yearly_stats, get_monthly_stats
 
 
 class DestinationAddressViewSet(ModelViewSet):
@@ -106,45 +108,7 @@ class MonthlyStatsView(APIView):
                 status=400
             )
 
-        trips = TripBook.objects.filter(
-            user=request.user,
-            date__year=year,
-            date__month=month,
-            destinationAddress__isnull=False
-        ).select_related("destinationAddress")
-
-        total_km = trips.aggregate(
-            total=Sum("destinationAddress__kilometers")
-        )["total"] or 0
-
-        destinations_qs = trips.values(
-            "destinationAddress__id",
-            "destinationAddress__street",
-            "destinationAddress__postal_code",
-            "destinationAddress__city",
-        ).annotate(
-            trips_count=Count("id"),
-            km_total=Sum("destinationAddress__kilometers"),
-        ).order_by("-trips_count")
-
-        destinations_data = [
-            {
-                "id": d["destinationAddress__id"],
-                "street": d["destinationAddress__street"],
-                "postal_code": d["destinationAddress__postal_code"],
-                "city": d["destinationAddress__city"],
-                "trips_count": d["trips_count"],
-                "km_total": d["km_total"],
-            }
-            for d in destinations_qs
-        ]
-
-        serializer = MonthlyStatsSerializer({
-            "year": int(year),
-            "month": int(month),
-            "total_kilometers": total_km,
-            "destinations": destinations_data,
-        })
+        serializer = MonthlyStatsSerializer(get_monthly_stats(user=request.user, year=year, month=month))
 
         return Response(serializer.data)
 
@@ -166,33 +130,38 @@ class YearlyStatsView(APIView):
                 status=400
             )
 
-        trips = TripBook.objects.filter(
-            user=request.user,
-            date__year=year,
-            destinationAddress__isnull=False
-        ).select_related("destinationAddress")
+        serializer = YearlyStatsSerializer(get_yearly_stats(user=request.user, year=year))
+        return Response(serializer.data)
 
-        total_km_year = trips.aggregate(
-            total=Sum("destinationAddress__kilometers")
-        )["total"] or 0
+class YearlyReportPdfView(APIView):
+    permission_classes = [IsAuthenticated]
 
-        months_qs = (
-            trips
-            .annotate(month=ExtractMonth("date"))
-            .values("month")
-            .annotate(
-                trips_count=Count("id"),
-                total_kilometers=Sum("destinationAddress__kilometers"),
-            )
-            .order_by("month")
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("year", int, required=True),
+        ],
+    )
+    def get(self, request):
+        year = int(request.query_params.get("year"))
+
+        yearly = get_yearly_stats(request.user, year)
+
+        monthly = [
+            get_monthly_stats(request.user, year, month)
+            for month in range(1, 13)
+        ]
+
+        html = render_to_string(
+            "reports/yearly_report.twig",
+            {
+                "yearly": yearly,
+                "monthly": monthly,
+                "user": request.user,
+            }
         )
 
-        months_data = list(months_qs)
+        pdf = HTML(string=html).write_pdf()
 
-        serializer = YearlyStatsSerializer({
-            "year": int(year),
-            "total_kilometers": total_km_year,
-            "months": months_data,
-        })
-
-        return Response(serializer.data)
+        response = HttpResponse(pdf, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="report_{year}.pdf"'
+        return response
