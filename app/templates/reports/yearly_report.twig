@@ -141,7 +141,7 @@
 
 <div class="summary">
     <div class="summary-box">
-        <div class="label">Gesamtkilometer</div>
+        <div class="label">Gesamtkilometer einfach</div>
         <div class="value">{{ yearly.total_kilometers|de_format }} km</div>
     </div>
 
@@ -157,7 +157,7 @@
     <tr>
         <th>Monat</th>
         <th class="number">Fahrten</th>
-        <th class="number">Kilometer</th>
+        <th class="number">Kilometer einfach</th>
     </tr>
     {% for m in yearly.months %}
     <tr>
@@ -174,14 +174,14 @@
 
 <div class="month-header">
     <h2>{{ month.month|month_name }} {{ month.year }}</h2>
-    <div class="month-total">{{ month.total_kilometers|de_format }} km</div>
+    <div class="month-total">{{ month.total_kilometers|de_format }} km einfach</div>
 </div>
 
 <table>
     <tr>
         <th>Ziel</th>
         <th class="number">Fahrten</th>
-        <th class="number">Kilometer</th>
+        <th class="number">Kilometer einfach</th>
     </tr>
     {% for d in month.destinations %}
     <tr>

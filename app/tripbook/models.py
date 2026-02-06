@@ -40,3 +40,8 @@ class TripBook(models.Model):
     class Meta:
         verbose_name = "Trip"
         verbose_name_plural = "Trips"
+
+class Holiday(models.Model):
+    name = models.CharField(max_length=255)
+    date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)

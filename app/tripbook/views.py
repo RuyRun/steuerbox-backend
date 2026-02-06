@@ -2,18 +2,20 @@ from collections import defaultdict
 from datetime import date, timedelta
 import calendar
 
+from drf_spectacular.types import OpenApiTypes
 from weasyprint import HTML
 from django.http import HttpResponse
 from django.template.loader import render_to_string
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, OpenApiResponse
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
-from .models import DestinationAddress, TripBook
-from .serializers import DestinationAddressSerializer, TripBookSerializer, MonthlyStatsSerializer, YearlyStatsSerializer
-from .service.stats import get_yearly_stats, get_monthly_stats
+from .models import DestinationAddress, TripBook, Holiday
+from .serializers import DestinationAddressSerializer, TripBookSerializer, MonthlyStatsSerializer, \
+    YearlyStatsSerializer, HolidaySerializer
+from .service.stats import get_yearly_stats, get_monthly_stats, fetch_and_save_holidays
 
 
 class DestinationAddressViewSet(ModelViewSet):
@@ -38,6 +40,48 @@ class TripBookViewSet(ModelViewSet):
     serializer_class = TripBookSerializer
     permission_classes = [IsAuthenticated]
     http_method_names = ['put', 'patch']
+
+class HolidayViewSet(ModelViewSet):
+    queryset = Holiday.objects.all()
+    serializer_class = HolidaySerializer
+    http_method_names = ['get']
+
+
+class CustomHolidayViewSet(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="year",
+                description="Jahr des Kalenders",
+                required=True,
+                type=int,
+            ),
+        ],
+        responses=HolidaySerializer(many=True),
+    )
+    def get(self, request):
+        year = request.query_params.get("year")
+
+        if not year:
+            return Response(
+                {"detail": "year query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            year = int(year)
+        except ValueError:
+            return Response(
+                {"detail": "year must be an integer."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        holidays = Holiday.objects.filter(date__year=year)
+        serializer = HolidaySerializer(holidays, many=True)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class CustomTripBookViewSet(APIView):
     permission_classes = [IsAuthenticated]
@@ -66,6 +110,9 @@ class CustomTripBookViewSet(APIView):
         first = date(year, month, 1)
         last = date(year, month, calendar.monthrange(year, month)[1])
 
+        if not Holiday.objects.filter(date__year=year).exists():
+            fetch_and_save_holidays(year, land="NW")
+
         existing_days = TripBook.objects.filter(
             user=request.user,
             date__range=(first, last)
@@ -86,7 +133,6 @@ class CustomTripBookViewSet(APIView):
 
         serializer = TripBookSerializer(days, many=True)
         return Response(serializer.data)
-
 
 class MonthlyStatsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -138,8 +184,22 @@ class YearlyReportPdfView(APIView):
 
     @extend_schema(
         parameters=[
-            OpenApiParameter("year", int, required=True),
+            OpenApiParameter(
+                name="year",
+                type=int,
+                required=True,
+                description="Jahr des Reports (z.B. 2024)",
+            ),
         ],
+        responses={
+            200: OpenApiResponse(
+                response=OpenApiTypes.BINARY,
+                description="PDF-Jahresreport",
+            ),
+            400: OpenApiResponse(description="Ungültiger oder fehlender year-Parameter"),
+            401: OpenApiResponse(description="Nicht authentifiziert"),
+        },
+        description="Generiert einen Jahresreport als PDF und gibt ihn als Download zurück.",
     )
     def get(self, request):
         year = int(request.query_params.get("year"))

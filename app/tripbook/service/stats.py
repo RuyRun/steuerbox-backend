@@ -1,10 +1,11 @@
 # services/stats.py
-
 from django.db.models import Sum, Count
 from django.db.models.functions import ExtractMonth
 
-from ..models import TripBook
-
+from ..models import TripBook, Holiday
+import json
+from urllib.request import urlopen
+from datetime import datetime
 
 def get_yearly_stats(user, year):
     trips = TripBook.objects.filter(
@@ -75,3 +76,45 @@ def get_monthly_stats(user, year, month):
         "total_kilometers": total_km,
         "destinations": list(destinations_data),
     }
+
+def fetch_and_save_holidays(year: int, land: str = "NW"):
+    url = f"https://feiertage-api.de/api/?jahr={year}&nur_land={land}"
+
+    with urlopen(url) as response:
+        if response.status != 200:
+            return False
+
+        data = json.loads(response.read())
+
+    holidays = []
+    for name, values in data.items():
+        date_str = values.get("datum")
+        if not date_str:
+            continue
+
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+        holidays.append(Holiday(name=name, date=date_obj))
+
+    Holiday.objects.bulk_create(holidays)
+    return True
+
+# def fetch_and_save_holidays(year: int, land: str = "NW"):
+#     url = f"https://feiertage-api.de/api/?jahr={year}&nur_land={land}"
+#     response = requests.get(url)
+#
+#     if response.status_code != 200:
+#         return False
+#
+#     data = response.json()
+#
+#     holidays = []
+#     for name, values in data.items():
+#         date_str = values.get("datum")
+#         if not date_str:
+#             continue
+#
+#         date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+#         holidays.append(Holiday(name=name, date=date_obj))
+#
+#     Holiday.objects.bulk_create(holidays)
+#     return True

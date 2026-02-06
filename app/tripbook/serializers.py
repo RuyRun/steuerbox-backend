@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import TripBook, DestinationAddress
+from .models import TripBook, DestinationAddress, Holiday
 
 
 class DestinationAddressSerializer(serializers.ModelSerializer):
@@ -19,6 +19,11 @@ class TripBookSerializer(serializers.ModelSerializer):
         model = TripBook
         fields = ['id', 'date', 'destinationAddress', 'comment']
 
+
+class HolidaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Holiday
+        fields = ['name', 'date']
 
 class DestinationMonthlyStatSerializer(serializers.Serializer):
     id = serializers.IntegerField()
