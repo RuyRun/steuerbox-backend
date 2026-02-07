@@ -73,8 +73,10 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 0.6cm;
-        }
 
+            margin-left: 0;
+            margin-right: auto;
+        }
         th {
             background: #3498db;
             color: #ffffff;
@@ -83,7 +85,15 @@
             padding: 0.35cm;
             font-size: 10pt;
         }
-
+    th,
+td {
+    text-align: left;
+    white-space: nowrap;   /* Header + Inhalt bleiben in einer Zeile */
+}
+        th.number,
+        td.number {
+            text-align: right;
+        }
         td {
             padding: 0.35cm;
             border-bottom: 1px solid #e1e6eb;

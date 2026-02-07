@@ -46,7 +46,8 @@ INSTALLED_APPS = [
     # Local Apps
     'core',
     'accounts',
-    'tripbook'
+    'tripbook',
+    'einnahmenueberschuss'
 ]
 
 MIDDLEWARE = [
@@ -136,6 +137,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 REST_FRAMEWORK = {
+    'COMPONENT_SPLIT_REQUEST': True,
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
@@ -147,3 +149,11 @@ REST_FRAMEWORK = {
 
 
 AUTH_USER_MODEL = "accounts.User"
+
+SPECTACULAR_SETTINGS = {
+    # Info für OpenAPI
+    'TITLE': 'Meine API',
+    'DESCRIPTION': 'API Dokumentation',
+    'VERSION': '0.01.0',
+    "COMPONENT_SPLIT_REQUEST": True,
+}
